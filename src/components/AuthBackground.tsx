@@ -1,0 +1,21 @@
+const AuthBackground = () => {
+  return (
+    <div className="fixed inset-0 -z-10 overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-br from-purple-500 via-blue-500 to-purple-600">
+        <div className="absolute inset-0" style={{
+          backgroundImage: `
+            repeating-linear-gradient(
+              135deg,
+              transparent,
+              transparent 80px,
+              rgba(255, 255, 255, 0.05) 80px,
+              rgba(255, 255, 255, 0.05) 160px
+            )
+          `
+        }} />
+      </div>
+    </div>
+  );
+};
+
+export default AuthBackground;
