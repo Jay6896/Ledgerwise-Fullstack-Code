@@ -1,73 +1,111 @@
-# Welcome to your Lovable project
+# LedgerWise – AI-Powered Expense Tracker for Small Businesses
 
-## Project info
+LedgerWise is a web application that helps small businesses track sales and expenses, visualize performance, and get AI-driven insights about their business health. The AI analyzes your data to provide a concise breakdown of profitability, trends, and actionable recommendations.
 
-**URL**: https://lovable.dev/projects/8e3655a3-cb54-4f4a-a0a1-9307564f7495
+This project was built for the TIC Hackathon 2.0.
 
-## How can I edit this code?
+## Key Features
 
-There are several ways of editing your application.
+- Record sales and expenses with quantity and unit price
+- Import CSV/XLSX for fast bulk entry (headers: `name, category, amount, date, quantity, totalamount` where category is `sale` or `expense`)
+- Dashboard with totals and top-selling items
+- Reports with weekly performance, SDE-based valuation, and PIT estimate (Nigeria, 2026 bands)
+- AI insights, analysis, and chat using AWS Bedrock
+- Cookie-based authentication with sessions
 
-**Use Lovable**
+## Tech Stack
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/8e3655a3-cb54-4f4a-a0a1-9307564f7495) and start prompting.
+- Frontend: React (Vite + TypeScript), Tailwind CSS, shadcn-ui
+- Backend: Flask, SQLAlchemy, Flask-Login, Flask-CORS, python-dotenv
+- AI: AWS Bedrock + Pydantic
+- Data import: pandas (CSV/XLSX)
 
-Changes made via Lovable will be committed automatically to this repo.
+## Getting Started (Local Development)
 
-**Use your preferred IDE**
+Prerequisites:
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- Node.js (18+) and npm
+- Python 3.12/3.13
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### 1) Clone the repository
 
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
+```bash
 git clone <YOUR_GIT_URL>
+cd LW-Frontend-Code
+```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+### 2) Frontend setup
 
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```bash
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The app runs on http://localhost:5173
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### 3) Backend setup
 
-**Use GitHub Codespaces**
+Create a virtual environment and install dependencies:
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```bash
+cd backend
+python -m venv .venv
+# Windows PowerShell
+. .venv/Scripts/Activate.ps1
+pip install -r requirements.txt
+```
 
-## What technologies are used for this project?
+Create a `.env` file in `backend/`:
 
-This project is built with:
+```properties
+SECRET_KEY=supersecretkey
+# For local development you can use SQLite (recommended):
+DATABASE_URL=sqlite:///instance/app.db
+# Optional AWS (only if using AI endpoints with Bedrock and you have access)
+AWS_REGION=us-east-1
+AWS_DEFAULT_REGION=us-east-1
+# If using keys locally (not recommended for prod), set:
+# AWS_ACCESS_KEY_ID=...
+# AWS_SECRET_ACCESS_KEY=...
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+Run the backend API:
 
-## How can I deploy this project?
+```bash
+python app.py
+```
 
-Simply open [Lovable](https://lovable.dev/projects/8e3655a3-cb54-4f4a-a0a1-9307564f7495) and click on Share -> Publish.
+The API runs on http://localhost:5000
 
-## Can I connect a custom domain to my Lovable project?
+### 4) Login and try it out
 
-Yes, you can!
+- Register a user from the UI (Signup page). This also creates a business profile.
+- Add sales/expenses manually or use Import in Sales & Expenses to upload a CSV/XLSX.
+- Open Reports to see health score, weekly performance, valuation, and PIT.
+- Try Chat for AI Q&A.
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## CSV Template
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Your CSV must include these lowercase headers:
+
+```
+name,category,amount,date,quantity,totalamount
+```
+
+- `category` must be `sale` or `expense`
+- `date` should be ISO format (YYYY-MM-DD)
+- If `totalamount` is blank, the server computes it as `amount * quantity`
+
+A sample full-year profitable dataset is available at:
+
+- `public/sample_profitable_retailer_full_year_2024.csv`
+
+## Notes
+
+- CORS and cookies are configured for local dev (Vite + Flask).
+- If Postgres is unavailable locally, the backend falls back to SQLite per `.env`.
+- For production, configure a proper DATABASE_URL, HTTPS cookies, and secure env handling.
+
+## License
+
+MIT
