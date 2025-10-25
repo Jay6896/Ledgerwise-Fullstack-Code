@@ -49,10 +49,12 @@ def get_business_chat_reply(history: List[dict], user_message: str, context: str
         )
         return result
     except Exception as e:
-        print(f"[AI Chat] Bedrock invocation failed: {e}")
-        # Basic deterministic fallback using context totals
-        fallback_text = (
-            "I couldn't reach the AI. Based on your recent totals, tighten expenses and keep records for PIT. "
-            "Aim to keep net margin above 15%. If profit grows, set aside 10–20% monthly for PIT."
+        print(f"[Chat] Bedrock failed: {e}")
+        # Provide a generic fallback if the AI service fails
+        return ChatReply(
+            reply="Couldn't reach the server at this moment, try again later"
         )
-        return ChatReply(reply=fallback_text)
+
+# --- 4. Interactive Execution ---
+if __name__ == "__main__":
+    pass
