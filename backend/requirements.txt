@@ -4,6 +4,11 @@ Flask-SQLAlchemy
 Flask-Bcrypt
 Flask-Login
 python-dotenv
+psycopg2-binary
+pandas
+openpyxl
+xlrd
 boto3
 pydantic
 instructor
+gunicorn
