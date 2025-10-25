@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 from flask import Flask
 from flask_cors import CORS
 import os
+import re
+
 
 def create_app():
     app = Flask(__name__)
@@ -21,9 +23,13 @@ def create_app():
         "https://ledgerwise-chi.vercel.app",
         "https://ledgerwise-jay6896s-projects.vercel.app",
         "https://ledgerwise-jcn35tgwe-jay6896s-projects.vercel.app",
+        "https://ledgerwise-frontend-deployed.vercel.app",
+        # Render backend itself (for internal tests)
         "https://ledgerwise-fullstack-code.onrender.com",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        # Allow any Vercel preview/prod domain
+        re.compile(r"^https://.*\\.vercel\\.app$")
     ]
 
     vercel_origin = os.getenv("VERCEL_ORIGIN")
