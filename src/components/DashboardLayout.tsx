@@ -4,7 +4,6 @@ import Sidebar from "./Sidebar";
 import { Input } from "./ui/input";
 import { Search, Bell, User } from "lucide-react";
 import { Button } from "./ui/button";
-import { Badge } from "./ui/badge";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -43,11 +42,9 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             </div>
             
             <div className="flex items-center gap-3 relative">
-              <Button className="relative h-9 w-9 rounded-md hover:bg-accent hover:text-accent-foreground">
+              {/* Notification bell: grey outline, transparent, no badge */}
+              <Button variant="outline" className="relative h-9 w-9 rounded-md bg-transparent border-border text-muted-foreground hover:bg-transparent hover:text-muted-foreground">
                 <Bell className="w-5 h-5" />
-                <Badge className="absolute -top-1 -right-1 w-5 h-5 p-0 flex items-center justify-center bg-destructive text-white">
-                  3
-                </Badge>
               </Button>
               
               <Button className="h-9 w-9 rounded-md hover:bg-accent hover:text-accent-foreground" onClick={() => setMenuOpen((v) => !v)}>
