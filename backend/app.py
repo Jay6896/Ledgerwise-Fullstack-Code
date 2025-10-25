@@ -13,18 +13,26 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # Update CORS configuration
-    CORS(app, supports_credentials=True, resources={
-    r"/*": {
-        "origins": [
-            "https://ledgerwise-chi.vercel.app",
-            "https://ledgerwise-jay6896s-projects.vercel.app",
-            "http://localhost:5173"
-        ],
-        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
-    }
-    })
+    # CORS configuration with deployed origins
+    vercel_origin = os.getenv("VERCEL_ORIGIN")  # optional, e.g., https://ledgerwise-*.vercel.app
+    allowed_origins = [
+        "https://ledgerwise-chi.vercel.app",
+        "https://ledgerwise-jay6896s-projects.vercel.app",
+        "https://ledgerwise-jcn35tgwe-jay6896s-projects.vercel.app",
+        "https://ledgerwise-fullstack-code.onrender.com",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+    if vercel_origin:
+        allowed_origins.append(vercel_origin)
+
+    CORS(
+        app,
+        supports_credentials=True,
+        resources={r"/*": {"origins": allowed_origins}},
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+    )
 
 
     # Ensure DB is reachable; if not, fall back to SQLite for local dev
