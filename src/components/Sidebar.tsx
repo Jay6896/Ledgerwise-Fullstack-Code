@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const navItems = [
+export const navItems = [
   { title: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
   { title: "Sales & Expenses", path: "/catalog", icon: DollarSign },
   { title: "Chat", path: "/chat", icon: MessageSquare },
@@ -16,7 +16,7 @@ const navItems = [
 
 const Sidebar = () => {
   return (
-    <aside className="w-64 bg-sidebar border-r border-sidebar-border min-h-screen flex flex-col">
+    <aside className="hidden md:flex w-64 bg-sidebar border-r border-sidebar-border min-h-screen flex-col">
       <div className="p-6">
         <h1 className="text-xl font-bold text-primary tracking-wide">LEDGERWISE</h1>
       </div>

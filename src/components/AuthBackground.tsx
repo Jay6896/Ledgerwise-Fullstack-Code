@@ -1,7 +1,7 @@
 const AuthBackground = () => {
   return (
     <div className="fixed inset-0 -z-10 overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-purple-500 via-blue-500 to-purple-600">
+      <div className="absolute inset-0 bg-gradient-to-br from-[#7e6fff] via-[#7e6fff] to-[#7e6fff]">
         <div className="absolute inset-0" style={{
           backgroundImage: `
             repeating-linear-gradient(
