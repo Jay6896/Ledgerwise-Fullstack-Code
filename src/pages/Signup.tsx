@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import AuthBackground from "@/components/AuthBackground";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { API_BASE } from "@/lib/config";
 
 const Signup = () => {
   const navigate = useNavigate();
@@ -31,7 +32,7 @@ const Signup = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:5000/auth/register', {
+      const response = await fetch(`${API_BASE}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -33,8 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
-const API_BASE = "http://localhost:5000";
+import { API_BASE } from "@/lib/config";
 
 type CatalogItem = {
   id: number;

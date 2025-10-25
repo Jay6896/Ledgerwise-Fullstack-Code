@@ -4,6 +4,7 @@ import Sidebar, { navItems } from "./Sidebar";
 import { Input } from "./ui/input";
 import { Search, Bell, User, Menu } from "lucide-react";
 import { Button } from "./ui/button";
+import { API_BASE } from "@/lib/config";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -16,7 +17,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
   const handleLogout = async () => {
     try {
-      await fetch("http://localhost:5000/auth/logout", {
+      await fetch(`${API_BASE}/auth/logout`, {
         method: "POST",
         credentials: "include",
       });

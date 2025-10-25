@@ -6,8 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { Download } from "lucide-react";
 import { useEffect, useState } from "react";
-
-const API_BASE = "http://localhost:5000";
+import { API_BASE } from "@/lib/config";
 
 type AdvicePoint = { title: string; detail: string };
 type StrategicAdvice = { summary: string; recommendations: AdvicePoint[] };

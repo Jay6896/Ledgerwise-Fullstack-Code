@@ -5,8 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Send, MessageSquare } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-
-const API_BASE = "http://localhost:5000";
+import { API_BASE } from "@/lib/config";
 
 type ChatMsg = { id: number; role: 'user' | 'assistant'; content: string; time?: string };
 

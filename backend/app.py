@@ -15,18 +15,17 @@ def create_app():
 
     # Update CORS configuration
     CORS(app, supports_credentials=True, resources={
-        r"/*": {
-            "origins": [
-                "https://ledgerwise-chi.vercel.app/",
-                "http://localhost:5173",
-                "http://127.0.0.1:5173",
-                "http://localhost:8080",
-                "http://127.0.0.1:8080",
-            ],  # Vite/other dev origins
-            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
-        }
+    r"/*": {
+        "origins": [
+            "https://ledgerwise-chi.vercel.app",
+            "https://ledgerwise-jay6896s-projects.vercel.app",
+            "http://localhost:5173"
+        ],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
+    }
     })
+
 
     # Ensure DB is reachable; if not, fall back to SQLite for local dev
     try:

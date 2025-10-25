@@ -2,8 +2,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DollarSign, ShoppingCart, TrendingUp, Package } from "lucide-react";
 import { useEffect, useState } from "react";
-
-const API_BASE = "http://localhost:5000";
+import { API_BASE } from "@/lib/config";
 
 type TopItem = { name: string; sales: number; units: number };
 
