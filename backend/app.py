@@ -21,6 +21,7 @@ def create_app():
     allowed_origins = [
         "https://ledgerwise-chi.vercel.app",
         "https://ledgerwise-frontend-deployed.vercel.app",
+        "https://ledgerwise-working.vercel.app",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ]
@@ -40,23 +41,6 @@ def create_app():
             }
         },
     )
-
-    @app.after_request
-    def force_cookie_flags(resp):
-        cookies = resp.headers.getlist('Set-Cookie')
-        if cookies:
-            resp.headers.pop('Set-Cookie', None)
-            for c in cookies:
-                cc = c
-                if 'SameSite' not in cc:
-                    cc += '; SameSite=None'
-                if 'Secure' not in cc:
-                    cc += '; Secure'
-                # Partitioned cookies help with third‑party cookie phaseout
-                if 'Partitioned' not in cc:
-                    cc += '; Partitioned'
-                resp.headers.add('Set-Cookie', cc)
-        return resp
 
     # Ensure DB is reachable; only fallback to SQLite for local dev
     try:
