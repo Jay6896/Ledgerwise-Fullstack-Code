@@ -42,6 +42,24 @@ def create_app():
         },
     )
 
+    @app.after_request
+    def force_cookie_flags(resp):
+        """Ensure session cookies have the flags needed for cross-site auth."""
+        cookies = resp.headers.getlist('Set-Cookie')
+        if cookies:
+            resp.headers.pop('Set-Cookie', None)
+            for c in cookies:
+                # Ensure all required flags are present
+                if 'SameSite=None' not in c:
+                    c += '; SameSite=None'
+                if 'Secure' not in c:
+                    c += '; Secure'
+                # Partitioned is a new flag to help with third-party cookie phase-out
+                if 'Partitioned' not in c:
+                    c += '; Partitioned'
+                resp.headers.add('Set-Cookie', c)
+        return resp
+
     # Ensure DB is reachable; only fallback to SQLite for local dev
     try:
         from sqlalchemy import create_engine
