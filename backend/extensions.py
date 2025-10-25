@@ -14,11 +14,7 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 
-login_manager.login_view = 'auth.login'
-login_manager.login_message_category = 'info'
-
-
-# Return JSON 401 for API instead of redirecting to the login page
+# Do not force HTML redirects; return JSON 401 for APIs
 @login_manager.unauthorized_handler
 def unauthorized():
     from flask import jsonify

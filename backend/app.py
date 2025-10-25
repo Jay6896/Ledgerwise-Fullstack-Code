@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 from flask import Flask
 from flask_cors import CORS
 import os
-import re
 
 
 def create_app():
@@ -18,25 +17,18 @@ def create_app():
     load_dotenv()
     app.config.from_object(Config)
 
-    # Deployed frontend & backend origins
+    # Explicit frontend origins only
     allowed_origins = [
         "https://ledgerwise-chi.vercel.app",
-        "https://ledgerwise-jay6896s-projects.vercel.app",
-        "https://ledgerwise-jcn35tgwe-jay6896s-projects.vercel.app",
         "https://ledgerwise-frontend-deployed.vercel.app",
-        # Render backend itself (for internal tests)
-        "https://ledgerwise-fullstack-code.onrender.com",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-        # Allow any Vercel preview/prod domain
-        re.compile(r"^https://.*\\.vercel\\.app$")
     ]
 
-    vercel_origin = os.getenv("VERCEL_ORIGIN")
-    if vercel_origin:
-        allowed_origins.append(vercel_origin)
+    extra_origin = os.getenv("VERCEL_ORIGIN")
+    if extra_origin:
+        allowed_origins.append(extra_origin)
 
-    # ✅ Correct placement of all arguments
     CORS(
         app,
         supports_credentials=True,
@@ -49,14 +41,34 @@ def create_app():
         },
     )
 
-    # Ensure DB is reachable; if not, fall back to SQLite for local dev
+    @app.after_request
+    def force_cookie_flags(resp):
+        cookies = resp.headers.getlist('Set-Cookie')
+        if cookies:
+            resp.headers.pop('Set-Cookie', None)
+            for c in cookies:
+                cc = c
+                if 'SameSite' not in cc:
+                    cc += '; SameSite=None'
+                if 'Secure' not in cc:
+                    cc += '; Secure'
+                # Partitioned cookies help with third‑party cookie phaseout
+                if 'Partitioned' not in cc:
+                    cc += '; Partitioned'
+                resp.headers.add('Set-Cookie', cc)
+        return resp
+
+    # Ensure DB is reachable; only fallback to SQLite for local dev
     try:
         from sqlalchemy import create_engine
         test_engine = create_engine(app.config.get("SQLALCHEMY_DATABASE_URI"))
         with test_engine.connect() as _:
             pass
     except Exception:
-        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///app.db"
+        if not os.getenv('RENDER'):  # local dev fallback only
+            app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///app.db"
+        else:
+            raise
 
     # Initialize extensions
     db.init_app(app)

@@ -4,23 +4,18 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Config:
-    SECRET_KEY = os.getenv('SECRET_KEY')
+    SECRET_KEY = os.getenv('SECRET_KEY') or 'change-this-secret-in-prod'
     SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # Cookies: use secure cross-site settings in production
-    ENV = os.getenv('FLASK_ENV', os.getenv('ENV', 'development'))
-    IS_PROD = os.getenv('RENDER') or os.getenv('RAILWAY_STATIC_URL') or os.getenv('VERCEL') or ENV == 'production'
-
-    # Session cookie flags (Flask session used by Flask-Login)
-    SESSION_COOKIE_SAMESITE = 'None' if IS_PROD else 'Lax'
-    SESSION_COOKIE_SECURE = True if IS_PROD else False
+    # Always use cross-site safe cookie flags (both apps are HTTPS on Vercel/Render)
+    SESSION_COOKIE_SAMESITE = 'None'
+    SESSION_COOKIE_SECURE = True
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_PATH = '/'
 
-    # Flask-Login remember cookie flags (when rememberMe is enabled)
-    REMEMBER_COOKIE_SAMESITE = 'None' if IS_PROD else 'Lax'
-    REMEMBER_COOKIE_SECURE = True if IS_PROD else False
+    REMEMBER_COOKIE_SAMESITE = 'None'
+    REMEMBER_COOKIE_SECURE = True
     REMEMBER_COOKIE_HTTPONLY = True
 
     SQLALCHEMY_ENGINE_OPTIONS = {
