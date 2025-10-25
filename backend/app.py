@@ -4,17 +4,19 @@ from config import Config
 from extensions import db, bcrypt, login_manager
 from sqlalchemy import inspect, text
 from dotenv import load_dotenv
+
+from flask import Flask
+from flask_cors import CORS
 import os
 
 def create_app():
-    # Load .env before creating app/config so env vars are available
-    load_dotenv()
-
     app = Flask(__name__)
+
+    # Load env and apply Config (DB URI, cookies, etc.)
+    load_dotenv()
     app.config.from_object(Config)
 
-    # CORS configuration with deployed origins
-    vercel_origin = os.getenv("VERCEL_ORIGIN")  # optional, e.g., https://ledgerwise-*.vercel.app
+    # Deployed frontend & backend origins
     allowed_origins = [
         "https://ledgerwise-chi.vercel.app",
         "https://ledgerwise-jay6896s-projects.vercel.app",
@@ -23,17 +25,23 @@ def create_app():
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ]
+
+    vercel_origin = os.getenv("VERCEL_ORIGIN")
     if vercel_origin:
         allowed_origins.append(vercel_origin)
 
+    # ✅ Correct placement of all arguments
     CORS(
         app,
         supports_credentials=True,
-        resources={r"/*": {"origins": allowed_origins}},
-        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+        resources={
+            r"/*": {
+                "origins": allowed_origins,
+                "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
+            }
+        },
     )
-
 
     # Ensure DB is reachable; if not, fall back to SQLite for local dev
     try:
