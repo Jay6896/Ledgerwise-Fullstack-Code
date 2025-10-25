@@ -13,7 +13,7 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!email || !password) {
@@ -21,9 +21,27 @@ const Login = () => {
       return;
     }
 
-    // Simple demo login - in production, use proper authentication
-    toast.success("Login successful!");
-    navigate("/dashboard");
+    try {
+      const response = await fetch('http://localhost:5000/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ email, password, rememberMe }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success(data.message || "Login successful!");
+        navigate("/dashboard");
+      } else {
+        toast.error(data.error || "An error occurred during login.");
+      }
+    } catch (error) {
+      toast.error("Failed to connect to the server.");
+    }
   };
 
   return (
@@ -86,7 +104,7 @@ const Login = () => {
             </label>
           </div>
 
-          <Button type="submit" className="w-full" size="lg">
+          <Button type="submit" className="w-full h-11 rounded-md px-8">
             Sign In
           </Button>
 

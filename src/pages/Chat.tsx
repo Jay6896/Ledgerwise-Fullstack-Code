@@ -6,61 +6,87 @@ import { Button } from "@/components/ui/button";
 import { Send, MessageSquare } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
+const API_BASE = "http://localhost:5000";
+
+type ChatMsg = { id: number; role: 'user' | 'assistant'; content: string; time?: string };
+
 const Chat = () => {
   const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState([
-    { id: 1, sender: "Support", text: "Hello! How can I help you today?", time: "10:30 AM", isUser: false },
-    { id: 2, sender: "You", text: "I need help with my inventory", time: "10:32 AM", isUser: true },
-    { id: 3, sender: "Support", text: "I'd be happy to help! What specific issue are you experiencing?", time: "10:33 AM", isUser: false },
-  ]);
+  const [loading, setLoading] = useState(false);
+  const [messages, setMessages] = useState<ChatMsg[]>([{
+    id: 1,
+    role: 'assistant',
+    content: "Hello! I’m your Business AI Assistant. Ask me about your sales, expenses, taxes, or growth strategies.",
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  }]);
 
-  const handleSend = () => {
-    if (!message.trim()) return;
-    
-    setMessages([...messages, {
+  const handleSend = async () => {
+    if (!message.trim() || loading) return;
+
+    const userMsg: ChatMsg = {
       id: messages.length + 1,
-      sender: "You",
-      text: message,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      isUser: true,
-    }]);
+      role: 'user',
+      content: message.trim(),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
+    setMessages(prev => [...prev, userMsg]);
     setMessage("");
+    setLoading(true);
+
+    try {
+      const history = messages.map(m => ({ role: m.role, content: m.content }));
+      const res = await fetch(`${API_BASE}/ai/chat`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ history, message: userMsg.content })
+      });
+
+      const data = await res.json();
+      const replyText = res.ok && data?.reply ? data.reply : (
+        data?.error || "Sorry, I couldn't reach the AI service right now."
+      );
+
+      const aiMsg: ChatMsg = {
+        id: userMsg.id + 1,
+        role: 'assistant',
+        content: replyText,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setMessages(prev => [...prev, aiMsg]);
+    } catch (e) {
+      const aiMsg: ChatMsg = {
+        id: messages.length + 2,
+        role: 'assistant',
+        content: "Network error contacting AI service.",
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setMessages(prev => [...prev, aiMsg]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold text-foreground">Chat Support</h1>
+        <h1 className="text-3xl font-bold text-foreground">Business AI Chat</h1>
 
         <div className="grid gap-6 lg:grid-cols-3">
           <Card className="lg:col-span-1 shadow-card">
             <CardHeader>
-              <CardTitle>Conversations</CardTitle>
+              <CardTitle className="flex items-center gap-2"><MessageSquare className="w-4 h-4" /> Conversations</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {[
-                  { name: "Support Team", status: "Active", unread: 2 },
-                  { name: "Sales Team", status: "Away", unread: 0 },
-                  { name: "Technical Support", status: "Offline", unread: 0 },
-                ].map((contact, i) => (
-                  <div key={i} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted cursor-pointer transition-colors">
-                    <Avatar>
-                      <AvatarFallback className="bg-primary text-primary-foreground">
-                        {contact.name.charAt(0)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-foreground">{contact.name}</p>
-                      <p className="text-xs text-muted-foreground">{contact.status}</p>
-                    </div>
-                    {contact.unread > 0 && (
-                      <span className="bg-primary text-primary-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                        {contact.unread}
-                      </span>
-                    )}
-                  </div>
-                ))}
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted">
+                <Avatar>
+                  <AvatarFallback className="bg-primary text-primary-foreground">AI</AvatarFallback>
+                </Avatar>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-foreground">Business AI Assistant</p>
+                  <p className="text-xs text-muted-foreground">Ask about your business</p>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -69,29 +95,31 @@ const Chat = () => {
             <CardHeader>
               <div className="flex items-center gap-3">
                 <Avatar>
-                  <AvatarFallback className="bg-primary text-primary-foreground">S</AvatarFallback>
+                  <AvatarFallback className="bg-primary text-primary-foreground">AI</AvatarFallback>
                 </Avatar>
                 <div>
-                  <CardTitle>Support Team</CardTitle>
-                  <p className="text-xs text-muted-foreground">Active now</p>
+                  <CardTitle>Business AI Assistant</CardTitle>
+                  <p className="text-xs text-muted-foreground">Online</p>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="flex-1 flex flex-col">
               <div className="flex-1 space-y-4 mb-4 max-h-[400px] overflow-y-auto">
                 {messages.map((msg) => (
-                  <div key={msg.id} className={`flex ${msg.isUser ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[70%] rounded-lg p-3 ${
-                      msg.isUser 
+                  <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[75%] rounded-lg p-3 ${
+                      msg.role === 'user' 
                         ? 'bg-primary text-primary-foreground' 
                         : 'bg-muted text-foreground'
                     }`}>
-                      <p className="text-sm">{msg.text}</p>
-                      <p className={`text-xs mt-1 ${
-                        msg.isUser ? 'text-primary-foreground/70' : 'text-muted-foreground'
-                      }`}>
-                        {msg.time}
-                      </p>
+                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                      {msg.time && (
+                        <p className={`text-xs mt-1 ${
+                          msg.role === 'user' ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                        }`}>
+                          {msg.time}
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -99,13 +127,14 @@ const Chat = () => {
 
               <div className="flex gap-2">
                 <Input
-                  placeholder="Type your message..."
+                  placeholder={loading ? "Thinking..." : "Type your message..."}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                   className="flex-1"
+                  disabled={loading}
                 />
-                <Button onClick={handleSend} size="icon">
+                <Button onClick={handleSend} className="w-10 h-10 p-0" disabled={loading}>
                   <Send className="w-4 h-4" />
                 </Button>
               </div>

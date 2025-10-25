@@ -1,0 +1,9 @@
+Flask
+Flask-Cors
+Flask-SQLAlchemy
+Flask-Bcrypt
+Flask-Login
+python-dotenv
+boto3
+pydantic
+instructor

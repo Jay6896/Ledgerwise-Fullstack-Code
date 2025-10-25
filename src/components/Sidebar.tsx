@@ -1,21 +1,17 @@
 import { NavLink } from "react-router-dom";
 import { 
   LayoutDashboard, 
-  Package, 
   DollarSign, 
   FileText, 
-  MessageSquare,
-  Warehouse
+  MessageSquare
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { title: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-  { title: "Catalog", path: "/catalog", icon: Package },
-  { title: "Sales & Expenses", path: "/sales", icon: DollarSign },
+  { title: "Sales & Expenses", path: "/catalog", icon: DollarSign },
   { title: "Chat", path: "/chat", icon: MessageSquare },
   { title: "Reports", path: "/reports", icon: FileText },
-  { title: "Product Stock", path: "/stock", icon: Warehouse },
 ];
 
 const Sidebar = () => {

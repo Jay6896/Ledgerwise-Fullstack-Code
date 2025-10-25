@@ -1,34 +1,70 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DollarSign, ShoppingCart, TrendingUp, Package } from "lucide-react";
+import { useEffect, useState } from "react";
+
+const API_BASE = "http://localhost:5000";
+
+type TopItem = { name: string; sales: number; units: number };
+
+type DashboardData = {
+  total_revenue: number;
+  total_expenses: number;
+  recent_sales: { id: number; name: string; amount: number }[];
+  top_selling: TopItem[];
+};
+
+function formatNaira(n: number) {
+  return `₦${Number(n || 0).toLocaleString()}`;
+}
 
 const Dashboard = () => {
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let ignore = false;
+    async function load() {
+      try {
+        setLoading(true);
+        const res = await fetch(`${API_BASE}/business/dashboard`, { credentials: "include" });
+        if (!res.ok) return;
+        const json = (await res.json()) as DashboardData;
+        if (!ignore) setData(json);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+    return () => { ignore = true; };
+  }, []);
+
   const stats = [
     {
       title: "Total Sales",
-      value: "₦2,450,000",
-      change: "+12.5%",
+      value: data ? formatNaira(data.total_revenue) : "—",
+      change: "",
       icon: DollarSign,
       color: "text-green-600",
     },
     {
-      title: "Total Orders",
-      value: "156",
-      change: "+8.2%",
+      title: "Total Expenses",
+      value: data ? formatNaira(data.total_expenses) : "—",
+      change: "",
       icon: ShoppingCart,
       color: "text-blue-600",
     },
     {
       title: "Revenue Growth",
-      value: "23.5%",
-      change: "+4.3%",
+      value: data ? (data.total_revenue ? `${((data.total_revenue - data.total_expenses) / Math.max(1, data.total_revenue) * 100).toFixed(1)}%` : "0.0%") : "—",
+      change: "",
       icon: TrendingUp,
       color: "text-purple-600",
     },
     {
       title: "Products",
-      value: "78",
-      change: "+5 new",
+      value: data ? String(data.top_selling?.length || 0) : "—",
+      change: "",
       icon: Package,
       color: "text-orange-600",
     },
@@ -53,7 +89,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-foreground">{stat.value}</div>
-                <p className="text-xs text-green-600 mt-1">{stat.change} from last month</p>
+                {!loading && <p className="text-xs text-green-600 mt-1">Updated now</p>}
               </CardContent>
             </Card>
           ))}
@@ -66,19 +102,18 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {[
-                  { action: "New order placed", time: "2 minutes ago", type: "sale" },
-                  { action: "Product updated", time: "1 hour ago", type: "update" },
-                  { action: "Payment received", time: "3 hours ago", type: "payment" },
-                  { action: "New customer registered", time: "5 hours ago", type: "customer" },
-                ].map((activity, i) => (
-                  <div key={i} className="flex items-center justify-between py-2 border-b last:border-0">
+                {(data?.recent_sales || []).map((s) => (
+                  <div key={s.id} className="flex items-center justify-between py-2 border-b last:border-0">
                     <div>
-                      <p className="text-sm font-medium text-foreground">{activity.action}</p>
-                      <p className="text-xs text-muted-foreground">{activity.time}</p>
+                      <p className="text-sm font-medium text-foreground">{s.name}</p>
+                      <p className="text-xs text-muted-foreground">Sale</p>
                     </div>
+                    <p className="text-sm font-semibold text-foreground">{formatNaira(s.amount)}</p>
                   </div>
                 ))}
+                {!loading && (!data?.recent_sales || data.recent_sales.length === 0) && (
+                  <p className="text-sm text-muted-foreground">No recent sales</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -89,20 +124,18 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {[
-                  { name: "Product A", sales: "₦450,000", units: 45 },
-                  { name: "Product B", sales: "₦380,000", units: 38 },
-                  { name: "Product C", sales: "₦320,000", units: 32 },
-                  { name: "Product D", sales: "₦290,000", units: 29 },
-                ].map((product, i) => (
-                  <div key={i} className="flex items-center justify-between py-2 border-b last:border-0">
+                {(data?.top_selling || []).map((product, i) => (
+                  <div key={`${product.name}-${i}`} className="flex items-center justify-between py-2 border-b last:border-0">
                     <div>
                       <p className="text-sm font-medium text-foreground">{product.name}</p>
                       <p className="text-xs text-muted-foreground">{product.units} units sold</p>
                     </div>
-                    <p className="text-sm font-semibold text-foreground">{product.sales}</p>
+                    <p className="text-sm font-semibold text-foreground">{formatNaira(product.sales)}</p>
                   </div>
                 ))}
+                {!loading && (!data?.top_selling || data.top_selling.length === 0) && (
+                  <p className="text-sm text-muted-foreground">No sales yet</p>
+                )}
               </div>
             </CardContent>
           </Card>
