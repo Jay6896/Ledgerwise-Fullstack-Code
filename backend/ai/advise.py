@@ -1,5 +1,4 @@
 import os
-import json
 import boto3
 from pydantic import BaseModel, Field
 from typing import Literal, List
@@ -49,144 +48,50 @@ MODEL_ID = "meta.llama3-70b-instruct-v1:0"
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1") 
 
 # --- UPDATED SYSTEM PROMPT ---
-SYSTEM_PROMPT = f"""
-You are a *Senior Expert* Nigerian Business and Tax Consultant. Your goal is to provide *deeply detailed, structured, and comprehensive* advice to help businesses in Nigeria.
-
-You MUST format your entire response using the provided JSON schema. You must fill all fields.
-
-**STRICT RULE & GUARDRAIL:**
-If a question is NOT explicitly and solely related to Nigerian business or tax matters, you MUST enforce the guardrail:
-- Set 'relevance_score' to 0.0
-- Set 'advice_type' to 'IRRELEVANT'
-- Set 'advice_title' to 'Query Irrelevant'
-- Set 'key_points_summary' to the rejection message: 'I am only programmed to provide business and tax advice specific to Nigeria. Please ask a relevant question.'
-- Set 'detailed_explanation' to 'N/A'
-- Set 'actionable_steps' to an empty list []
-- Set 'potential_risks_or_considerations' to 'N/A'
-
-For relevant queries, ensure 'relevance_score' is 1.0 and all fields are filled with detailed, expert advice.
+SYSTEM_PROMPT = """
+You are a senior Nigerian Business and Tax Advisor. Replies must be Nigeria-specific, factual, and concise.
+Rules:
+- If query is not Nigerian business/tax, set relevance_score=0.0 and advice_type=IRRELEVANT and provide the guardrail message.
+- Otherwise, provide concrete next steps with metrics and timelines (e.g., "Reduce COGS by 5% in 60 days by …").
+- Use NGN (₦) and local realities (VAT 7.5%, supplier terms) only if relevant.
+Return JSON strictly matching the schema.
 """
 
-# --- 3. Main Function to Interact with Bedrock ---
+_bedrock = None
+
+def _client():
+    global _bedrock
+    if _bedrock is None:
+        _bedrock = boto3.client('bedrock-runtime', region_name=AWS_REGION)
+    return _bedrock
+
+
 def get_nigerian_advice(user_query: str) -> DetailedBusinessAdvice:
     """
     Calls the Llama 3 70B model via AWS Bedrock using instructor for structured output.
     """
     try:
-        bedrock_client = boto3.client(
-            service_name='bedrock-runtime', 
-            region_name=AWS_REGION
-        )
-
-        client = instructor.from_bedrock(
-            bedrock_client,
-            mode=Mode.BEDROCK_JSON 
-        )
-        
-        full_query = f"{SYSTEM_PROMPT}\n\nUSER QUERY: {user_query}"
-
-        advice_object = client.messages.create(
+        client = instructor.from_bedrock(_client(), mode=Mode.BEDROCK_JSON)
+        full_query = f"{SYSTEM_PROMPT}\n\nUSER QUERY:\n{user_query}"
+        return client.messages.create(
             model=MODEL_ID,
-            messages=[
-                {"role": "user", "content": full_query} # Combined prompt
-            ],
-            response_model=DetailedBusinessAdvice, # <-- Using the new detailed model
-            max_tokens=2048, 
-            temperature=0.1 # Keep temperature low for factual advice
+            messages=[{"role": "user", "content": full_query}],
+            response_model=DetailedBusinessAdvice,
+            max_tokens=900,
+            temperature=0.1
         )
-
-        return advice_object
-
     except Exception as e:
-        print(f"An API/Connection error occurred: {e}")
-        # Return a fallback object on severe failure
+        print(f"[Advisor] Bedrock failed: {e}")
         return DetailedBusinessAdvice(
             relevance_score=0.0,
             advice_type="IRRELEVANT",
             advice_title="System Error: API Failure",
-            key_points_summary="The advisory service is currently unavailable due to a connection or API error.",
-            detailed_explanation="Please check your AWS configuration or model access.",
+            key_points_summary="Service unavailable. Check AWS configuration or model access.",
+            detailed_explanation="N/A",
             actionable_steps=[],
-            potential_risks_or_considerations="N/A"
+            potential_risks_or_considerations="N/A",
         )
 
 # --- 4. Interactive Execution (Simplified Output in a Loop) ---
 if __name__ == "__main__":
-    print("\n--- Nigerian Business and Tax Advisor (Detailed) ---")
-    print("Type 'quit' or 'exit' at any prompt to end the session.\n")
-    
-    GREETINGS = ['hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening']
-    next_query = None
-
-    while True:
-        try:
-            # --- PHASE 1: Get Question or Greeting ---
-            if next_query:
-                user_query = next_query
-                next_query = None # Clear the next_query
-                print("-" * 50)
-            else:
-                user_input = input("Ask a business or tax question (specific to Nigeria):\n> ")
-                user_query = user_input.strip()
-
-            if user_query.lower() in ['quit', 'exit', 'q']:
-                print("\nThank you for using the Nigerian Business Advisor. Goodbye!")
-                break
-            
-            if not user_query:
-                continue
-            
-            if user_query.lower() in GREETINGS:
-                print("\nHello! I am your Nigerian Business and Tax Advisor. How can I assist you with your business strategy or tax compliance questions today?")
-                print("-" * 50)
-                continue 
-
-            
-            # --- PHASE 2: Get Advice ---
-            advice_object = get_nigerian_advice(user_query)
-            
-            # --- UPDATED DISPLAY FOR DETAILED ADVICE ---
-            print("\n" + "="*50)
-            print(f"TITLE: {advice_object.advice_title.upper()}")
-            print(f"TYPE: {advice_object.advice_type.upper()}")
-            print("="*50)
-            
-            if advice_object.relevance_score > 0.5:
-                # Print the full, structured report
-                print("\n--- KEY SUMMARY ---")
-                print(advice_object.key_points_summary)
-                
-                print("\n--- DETAILED EXPLANATION ---")
-                print(advice_object.detailed_explanation)
-                
-                if advice_object.actionable_steps:
-                    print("\n--- ACTIONABLE NEXT STEPS ---")
-                    for step in advice_object.actionable_steps:
-                        print(f"  • {step}")
-                
-                print("\n--- KEY CONSIDERATIONS ---")
-                print(advice_object.potential_risks_or_considerations)
-            else:
-                # Print only the rejection message
-                print(advice_object.key_points_summary)
-
-            
-            # --- PHASE 3: Check for Continuation ---
-            continue_prompt = "\n\nDo you have any other questions? (Type 'no' to exit, or enter your next question):\n> "
-            next_input = input(continue_prompt).strip()
-            
-            if not next_input:
-                continue
-            elif next_input.lower() in ['no', 'n', 'quit', 'exit', 'q']:
-                print("\nThank you for using the Nigerian Business Advisor. Goodbye!")
-                break
-            else:
-                next_query = next_input
-            
-        except EOFError:
-            print("\nThank you for using the Nigerian Business Advisor. Goodbye!")
-            break
-        except Exception as e:
-            print(f"\nAn unexpected runtime error occurred: {e}. Restarting loop.")
-            print("\n" + "-"*50 + "\n")
-            continue
+    print("Advisor module is API-driven. Run Flask app to use.")

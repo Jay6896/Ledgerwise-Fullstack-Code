@@ -62,7 +62,7 @@ const Login = () => {
             <Input
               id="email"
               type="email"
-              placeholder="esteban_schiller@gmail.com"
+              placeholder="your.email@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="bg-background"
@@ -77,7 +77,7 @@ const Login = () => {
                 className="text-xs text-primary hover:underline"
                 onClick={() => toast.info("Password reset not implemented in demo")}
               >
-                Forget Password?
+                Forgot Password?
               </button>
             </div>
             <Input

@@ -71,7 +71,7 @@ const Chat = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold text-foreground">Business AI Chat</h1>
+        <h1 className="text-3xl font-bold text-foreground">Wise AI Chat</h1>
 
         <div className="grid gap-6 lg:grid-cols-3">
           <Card className="lg:col-span-1 shadow-card">
@@ -84,7 +84,7 @@ const Chat = () => {
                   <AvatarFallback className="bg-primary text-primary-foreground">AI</AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-foreground">Business AI Assistant</p>
+                  <p className="text-sm font-medium text-foreground">Wise AI Assistant</p>
                   <p className="text-xs text-muted-foreground">Ask about your business</p>
                 </div>
               </div>
@@ -98,7 +98,7 @@ const Chat = () => {
                   <AvatarFallback className="bg-primary text-primary-foreground">AI</AvatarFallback>
                 </Avatar>
                 <div>
-                  <CardTitle>Business AI Assistant</CardTitle>
+                  <CardTitle>Wise AI Assistant</CardTitle>
                   <p className="text-xs text-muted-foreground">Online</p>
                 </div>
               </div>

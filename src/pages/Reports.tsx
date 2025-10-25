@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { Download, TrendingUp, TrendingDown, AlertCircle, CheckCircle, Clock } from "lucide-react";
+import { Download } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const API_BASE = "http://localhost:5000";
@@ -34,18 +34,18 @@ const Reports = () => {
   const [tax, setTax] = useState<TaxSummary | null>(null);
   const [salesData, setSalesData] = useState<any[]>([]);
   const [expensesData, setExpensesData] = useState<any[]>([]);
-  const [aiTaxResult, setAiTaxResult] = useState<any | null>(null);
-  const [taxUploading, setTaxUploading] = useState(false);
+  const [pitQuick, setPitQuick] = useState<any | null>(null);
 
   const fetchAll = async () => {
     try {
       setLoading(true);
-      const [insightsRes, analyzeRes, taxRes, salesRes, expensesRes] = await Promise.all([
+      const [insightsRes, analyzeRes, taxRes, salesRes, expensesRes, pitRes] = await Promise.all([
         fetch(`${API_BASE}/ai/insights`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ period }) }),
         fetch(`${API_BASE}/ai/analyze`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ period }) }),
         fetch(`${API_BASE}/ai/tax`, { credentials: "include" }),
         fetch(`${API_BASE}/business/sales`, { credentials: "include" }),
         fetch(`${API_BASE}/business/expenses`, { credentials: "include" }),
+        fetch(`${API_BASE}/ai/pit`, { credentials: "include" }),
       ]);
 
       if (insightsRes.ok) setAdvice(await insightsRes.json());
@@ -63,6 +63,7 @@ const Reports = () => {
       if (expensesRes.ok) setExpensesData(await expensesRes.json());
       else setExpensesData([]);
 
+      if (pitRes.ok) setPitQuick(await pitRes.json()); else setPitQuick(null);
     } catch (e) {
       console.error('Failed fetching reports data', e);
     } finally {
@@ -75,9 +76,6 @@ const Reports = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period]);
 
-  const score = analysis?.health_score ?? 82;
-  const grade = score >= 90 ? "A" : score >= 85 ? "A-" : score >= 80 ? "B+" : score >= 75 ? "B" : score >= 70 ? "B-" : "C";
-
   // Derive financial numbers from salesData and expensesData
   const revenue = salesData.reduce((s, it) => s + (Number(it.amount) || 0), 0);
   const totalExpenses = expensesData.reduce((s, it) => s + (Number(it.amount) || 0), 0);
@@ -87,33 +85,72 @@ const Reports = () => {
   const grossProfit = revenue - cogs;
   const netProfit = revenue - totalExpenses;
 
-  // Cashflow: simplistic mapping
-  const cashIn = revenue;
-  const cashOut = totalExpenses;
-  const netCashFlow = cashIn - cashOut;
-
-  const handleTaxUpload = async (file: File | null, businessSize: 'MEDIUM' | 'LARGE') => {
-    if (!file) return;
-    try {
-      setTaxUploading(true);
-      setAiTaxResult(null);
-      const form = new FormData();
-      form.append('file', file);
-      form.append('business_size', businessSize);
-      const res = await fetch(`${API_BASE}/ai/tax/upload`, {
-        method: 'POST',
-        credentials: 'include',
-        body: form,
-      });
-      const data = await res.json();
-      if (res.ok) setAiTaxResult(data);
-      else setAiTaxResult({ error: data?.error || 'Failed to calculate tax' });
-    } catch (e) {
-      setAiTaxResult({ error: 'Network error uploading file' });
-    } finally {
-      setTaxUploading(false);
+  // New business health score with heavier penalty for losses
+  const baseScore = analysis?.health_score ?? 82;
+  let score = baseScore;
+  if (revenue <= 0) {
+    score = netProfit < 0 ? 25 : Math.min(score, 50);
+  } else {
+    const margin = netProfit / revenue;
+    if (margin < 0) {
+      score = Math.max(15, Math.round(baseScore + margin * 150 - 25));
+    } else if (margin < 0.05) {
+      score = Math.min(65, baseScore - 12);
+    } else if (margin < 0.10) {
+      score = Math.min(72, baseScore - 8);
+    } else if (margin >= 0.25) {
+      score = Math.min(100, baseScore + 8);
+    } else if (margin >= 0.15) {
+      score = Math.min(95, baseScore + 4);
     }
+  }
+  score = Math.max(0, Math.min(100, score));
+  const grade = score >= 90 ? "A" : score >= 85 ? "A-" : score >= 80 ? "B+" : score >= 75 ? "B" : score >= 70 ? "B-" : score >= 60 ? "C" : score >= 50 ? "D" : "F";
+
+  // --- Weekly aggregation helpers ---
+  const parseDate = (s?: string) => (s ? new Date(s) : null);
+  const getISOYearWeek = (d: Date) => {
+    const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const dayNum = date.getUTCDay() || 7; // Mon=1..Sun=7
+    date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+    return `${date.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
   };
+
+  type WeeklyRow = { key: string; revenue: number; expenses: number; profit: number };
+  const weeklyMap: Record<string, { revenue: number; expenses: number }> = {};
+  for (const s of salesData) {
+    const d = parseDate(s.date);
+    if (!d) continue;
+    const k = getISOYearWeek(d);
+    weeklyMap[k] = weeklyMap[k] || { revenue: 0, expenses: 0 };
+    weeklyMap[k].revenue += Number(s.amount) || 0;
+  }
+  for (const e of expensesData) {
+    const d = parseDate(e.date);
+    if (!d) continue;
+    const k = getISOYearWeek(d);
+    weeklyMap[k] = weeklyMap[k] || { revenue: 0, expenses: 0 };
+    weeklyMap[k].expenses += Number(e.amount) || 0;
+  }
+  const weekly: WeeklyRow[] = Object.entries(weeklyMap)
+    .map(([key, v]) => ({ key, revenue: v.revenue, expenses: v.expenses, profit: v.revenue - v.expenses }))
+    .sort((a, b) => (a.key < b.key ? -1 : 1));
+  const lastWeeks = weekly.slice(-8);
+  const last12 = weekly.slice(-12);
+  const avgProfit12 = last12.length ? last12.reduce((s, w) => s + w.profit, 0) / last12.length : 0;
+  const std12 = last12.length ? Math.sqrt(last12.reduce((s, w) => s + Math.pow(w.profit - avgProfit12, 2), 0) / last12.length) : 0;
+  const bestWeek = last12.reduce((m, w) => (w.profit > m ? w.profit : m), 0);
+  const last = lastWeeks[lastWeeks.length - 1]?.profit ?? 0;
+  const prev = lastWeeks[lastWeeks.length - 2]?.profit ?? 0;
+
+  // Realistic valuation from SDE (annualized weekly profit x multiple)
+  const annualSDE = Math.max(0, avgProfit12 * (52 / Math.max(1, last12.length)));
+  const multipleLow = 1.5;
+  const multipleHigh = 2.5;
+  const valuationLow = annualSDE * multipleLow;
+  const valuationHigh = annualSDE * multipleHigh;
 
   return (
     <DashboardLayout>
@@ -173,7 +210,7 @@ const Reports = () => {
             </Card>
 
             {/* Vital Signs derived from business data */}
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-6 md:grid-cols-1">
               {/* Profitability Card */}
               <Card className="shadow-card hover:shadow-hover transition-shadow border-l-4 border-l-green-500">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -206,40 +243,6 @@ const Reports = () => {
                   </div>
                 </CardContent>
               </Card>
-
-              {/* Liquidity Card */}
-              <Card className="shadow-card hover:shadow-hover transition-shadow border-l-4 border-l-orange-500">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-base">Liquidity</CardTitle>
-                  <div className="text-2xl font-bold text-orange-600">{Math.round((cashIn > 0 ? (netCashFlow / cashIn) * 100 : 0) || 0)}/100</div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm text-muted-foreground">Net Cash Flow</span>
-                      <span className="text-2xl font-bold text-orange-600 flex items-center gap-1">
-                        <TrendingDown className="w-5 h-5" />
-                        {formatNaira(netCashFlow)}
-                      </span>
-                    </div>
-                    <div className="space-y-2 text-xs">
-                      <div className="flex justify-between items-center p-2 bg-green-50 rounded">
-                        <span>Cash In</span>
-                        <span className="font-medium text-green-700">+{formatNaira(cashIn)}</span>
-                      </div>
-                      <div className="flex justify-between items-center p-2 bg-red-50 rounded">
-                        <span>Cash Out</span>
-                        <span className="font-medium text-red-700">-{formatNaira(cashOut)}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
-                    <p className="text-xs text-orange-900">
-                      <strong>AI Insight:</strong> {analysis?.insights?.[1] || "You spent ₦80,000 more than you brought in. You have ₦250,000 in unpaid invoices."}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
             </div>
 
             <div className="grid gap-6 md:grid-cols-2">
@@ -249,10 +252,29 @@ const Reports = () => {
                   <CardTitle className="text-lg">Estimated Business Valuation</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-primary mb-2">{analysis?.valuation || '₦—'}</div>
-                  <p className="text-sm text-muted-foreground">
-                    {analysis?.valuation ? 'Estimated by AI analyst.' : 'Valuation will appear here after AI analysis.'}
-                  </p>
+                  <div className="space-y-2">
+                    <div className="text-sm text-muted-foreground">Method: SDE-based (annualized avg weekly profit x 1.5–2.5x)</div>
+                    <div className="grid sm:grid-cols-2 gap-2">
+                      <div>
+                        <div className="text-xs text-muted-foreground">Annualized SDE</div>
+                        <div className="text-xl font-semibold">{formatNaira(annualSDE)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Valuation Range</div>
+                        <div className="text-xl font-semibold">{formatNaira(valuationLow)} – {formatNaira(valuationHigh)}</div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Stability (12w σ): {formatNaira(std12)} · Best week: {formatNaira(bestWeek)}
+                    </div>
+                    <div className="text-sm">
+                      {analysis?.valuation ? (
+                        <span className="text-muted-foreground">AI note: {analysis.valuation}</span>
+                      ) : (
+                        <span className="text-muted-foreground">Provide more weeks of data to tighten the range.</span>
+                      )}
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -277,116 +299,26 @@ const Reports = () => {
               </Card>
             </div>
 
-            {/* Tax & Compliance */}
+            {/* Tax & Compliance (PIT-focused) */}
             <Card className="shadow-card">
               <CardHeader>
-                <CardTitle>Tax & Compliance Status</CardTitle>
+                <CardTitle>Personal Income Tax (PIT) – Sole Proprietor</CardTitle>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Summary from business totals (quick view) or upload a statement for detailed AI tax analysis
+                  Estimated using 2026 PIT bands; treats profit as chargeable income (overestimate).
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Quick summary from DB totals */}
-                <div className="flex items-start gap-3 p-4 bg-green-50 rounded-lg border border-green-200">
-                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold">Company Income Tax (CIT)</span>
-                      <span className={`text-xs ${tax?.cit_exempt ? 'bg-green-600' : 'bg-orange-600'} text-white px-2 py-0.5 rounded`}>
-                        {tax?.cit_exempt ? 'EXEMPT' : 'APPLICABLE'}
-                      </span>
-                    </div>
-                    <p className="text-sm text-green-900">
-                      {tax?.cit_exempt ? 'Your revenue is below the ₦100M SME threshold, so you are not required to pay CIT.' : 'Your revenue exceeds the SME threshold; ensure CIT compliance.'}
-                    </p>
+                {/* Quick PIT from current totals */}
+                <div className="p-4 rounded-lg border bg-muted/30">
+                  <div className="grid sm:grid-cols-2 gap-2 text-sm">
+                    <p>Annual Revenue: <strong>{formatNaira(pitQuick?.annual_revenue)}</strong></p>
+                    <p>Annual Expenses: <strong>{formatNaira(pitQuick?.annual_expenses)}</strong></p>
+                    <p>Annual Profit (Taxable Income): <strong>{formatNaira(pitQuick?.annual_profit)}</strong></p>
+                    <p>Estimated PIT: <strong>{formatNaira(pitQuick?.estimated_pit)}</strong></p>
+                    <p>Tax Rate (Marginal): <strong>{pitQuick?.marginal_rate ? `${Number(pitQuick.marginal_rate).toFixed(1)}%` : '—'}</strong></p>
+                    <p>Effective Tax Rate: <strong>{pitQuick?.effective_rate ? `${Number(pitQuick.effective_rate).toFixed(1)}%` : '—'}</strong></p>
                   </div>
-                </div>
-
-                <div className="flex items-start gap-3 p-4 bg-orange-50 rounded-lg border border-orange-200">
-                  <AlertCircle className="w-5 h-5 text-orange-600 mt-0.5" />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold">Value Added Tax (VAT)</span>
-                      <span className={`text-xs ${tax?.vat_threshold_nearing ? 'bg-orange-600' : 'bg-green-600'} text-white px-2 py-0.5 rounded`}>
-                        {tax?.vat_threshold_nearing ? 'APPROACHING' : 'BELOW THRESHOLD'}
-                      </span>
-                    </div>
-                    <p className="text-sm text-orange-900">
-                      VAT Collected from Customers: <strong>{formatNaira(tax?.vat_collected)}</strong><br />
-                      VAT Paid to Suppliers: <strong className="text-red-700">-{formatNaira(tax?.vat_paid)}</strong><br />
-                      Net VAT Payable: <strong>{formatNaira(tax?.net_vat)}</strong>
-                    </p>
-                  </div>
-                </div>
-
-                {/* Detailed AI Tax Calculator (file upload) */}
-                <div className="p-4 rounded-lg border">
-                  <p className="text-sm font-semibold mb-2">Detailed Tax Calculator (Upload CSV/XLSX)</p>
-                  <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                    <select id="bizsize" className="border rounded px-2 py-1 text-sm">
-                      <option value="MEDIUM">MEDIUM</option>
-                      <option value="LARGE">LARGE</option>
-                    </select>
-                    <input id="taxfile" type="file" accept=".csv,.xlsx,.xls" className="text-sm" />
-                    <Button
-                      className="h-8 px-3"
-                      disabled={taxUploading}
-                      onClick={() => {
-                        const fInput = document.getElementById('taxfile') as HTMLInputElement | null;
-                        const sInput = document.getElementById('bizsize') as HTMLSelectElement | null;
-                        const f = fInput?.files?.[0] || null;
-                        const size = (sInput?.value as 'MEDIUM' | 'LARGE') || 'MEDIUM';
-                        handleTaxUpload(f, size);
-                      }}
-                    >
-                      {taxUploading ? 'Uploading...' : 'Analyze File'}
-                    </Button>
-                  </div>
-                  {aiTaxResult && (
-                    <div className="mt-3 text-sm">
-                      {aiTaxResult.error ? (
-                        <p className="text-red-600">{aiTaxResult.error}</p>
-                      ) : (
-                        <div className="grid sm:grid-cols-2 gap-2">
-                          <div>
-                            <p>Taxable Profit: <strong>{formatNaira(aiTaxResult.taxable_profit)}</strong></p>
-                            <p>CIT Rate: <strong>{aiTaxResult.cit_rate_applied?.toFixed ? `${aiTaxResult.cit_rate_applied.toFixed(1)}%` : `${aiTaxResult.cit_rate_applied}%`}</strong></p>
-                            <p>CIT Liability: <strong>{formatNaira(aiTaxResult.cit_liability)}</strong></p>
-                            <p>TET (3%): <strong>{formatNaira(aiTaxResult.education_tax_liability)}</strong></p>
-                            <p>Total Profit Tax Due: <strong>{formatNaira(aiTaxResult.total_profit_tax_due)}</strong></p>
-                          </div>
-                          <div>
-                            <p>VAT Output (Sales): <strong>{formatNaira(aiTaxResult.vat_output_collected)}</strong></p>
-                            <p>VAT Input (Purchases): <strong>{formatNaira(aiTaxResult.vat_input_paid)}</strong></p>
-                            <p>VAT Remittable: <strong>{formatNaira(aiTaxResult.vat_remittable_due)}</strong></p>
-                            <p>Status: <strong>{aiTaxResult.compliance_status}</strong></p>
-                          </div>
-                          <div className="sm:col-span-2 mt-2">
-                            <p className="font-semibold">Tax Recommendation</p>
-                            <p className="text-muted-foreground">{aiTaxResult.compliance_recommendation}</p>
-                            <p className="font-semibold mt-2">Business Advice</p>
-                            <p className="text-muted-foreground">{aiTaxResult.business_growth_advice}</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-start gap-3 p-4 bg-red-50 rounded-lg border border-red-200">
-                  <Clock className="w-5 h-5 text-red-600 mt-0.5" />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold">CAC Annual Returns</span>
-                      <span className="text-xs bg-red-600 text-white px-2 py-0.5 rounded">{tax?.cac_due_days ?? 30} DAYS</span>
-                    </div>
-                    <p className="text-sm text-red-900">
-                      Your annual filing is due soon. 
-                      <Button type="button" className="h-auto p-0 text-sm text-red-700 font-semibold ml-1 underline hover:underline bg-transparent shadow-none">
-                        Click here to see what you need
-                      </Button>
-                    </p>
-                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">Note: ignores allowable deductions; actual PIT likely lower.</p>
                 </div>
               </CardContent>
             </Card>
@@ -399,7 +331,7 @@ const Reports = () => {
                 <div>
                   <CardTitle>Financial Statements</CardTitle>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Traditional reports for you and your accountant
+                    Profit & Loss and PIT summary from your data
                   </p>
                 </div>
                 <Button className="gap-2" onClick={fetchAll}>
@@ -409,10 +341,9 @@ const Reports = () => {
               </CardHeader>
               <CardContent>
                 <Tabs defaultValue="pl" className="space-y-4">
-                  <TabsList className="grid w-full max-w-xl grid-cols-3">
+                  <TabsList className="grid w-full max-w-xl grid-cols-2">
                     <TabsTrigger value="pl">Profit & Loss</TabsTrigger>
-                    <TabsTrigger value="cf">Cash Flow Statement</TabsTrigger>
-                    <TabsTrigger value="tax">Tax Summary</TabsTrigger>
+                    <TabsTrigger value="pit">PIT Summary</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="pl" className="space-y-4">
@@ -450,50 +381,20 @@ const Reports = () => {
                     </div>
                   </TabsContent>
 
-                  <TabsContent value="cf" className="space-y-4">
-                    <div className="border rounded-lg p-6 space-y-4">
-                      <div className="flex justify-between items-center pb-2 border-b-2">
-                        <span className="font-bold">Cash In (Receipts)</span>
-                        <span className="font-bold text-green-600">{formatNaira(cashIn)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-2 border-b-2">
-                        <span className="font-bold">Cash Out (Payments)</span>
-                        <span className="font-bold text-red-600">-{formatNaira(cashOut)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pt-2">
-                        <span className="font-bold text-xl">Net Cash Flow</span>
-                        <span className="font-bold text-xl text-red-600">{formatNaira(netCashFlow)}</span>
-                      </div>
-                      <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                        <p className="text-sm text-blue-900">
-                          <strong>Beginning Cash Balance:</strong> {formatNaira(0)}<br />
-                          <strong>Ending Cash Balance:</strong> {formatNaira(netCashFlow)}
-                        </p>
-                      </div>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="tax" className="space-y-4">
+                  <TabsContent value="pit" className="space-y-4">
                     <div className="border rounded-lg p-6 space-y-4">
                       <div className="flex justify-between items-center pb-2 border-b">
-                        <span className="font-semibold">VAT Collected from Customers</span>
-                        <span className="font-semibold">{formatNaira(tax?.vat_collected)}</span>
+                        <span className="font-semibold">Estimated Annual PIT</span>
+                        <span className="font-semibold">{formatNaira(pitQuick?.estimated_pit)}</span>
                       </div>
-                      <div className="flex justify-between items-center pb-2 border-b">
-                        <span className="font-semibold">VAT Paid to Suppliers</span>
-                        <span className="font-semibold text-red-600">-{formatNaira(tax?.vat_paid)}</span>
+                      <div className="grid sm:grid-cols-2 gap-2 text-sm">
+                        <p>Taxable Income (Profit): <strong>{formatNaira(pitQuick?.annual_profit)}</strong></p>
+                        <p>Tax Rate (Marginal): <strong>{pitQuick?.marginal_rate ? `${Number(pitQuick.marginal_rate).toFixed(1)}%` : '—'}</strong></p>
+                        <p>Effective Tax Rate: <strong>{pitQuick?.effective_rate ? `${Number(pitQuick.effective_rate).toFixed(1)}%` : '—'}</strong></p>
                       </div>
-                      <div className="flex justify-between items-center pb-2 border-b-2 border-primary">
-                        <span className="font-bold">Net VAT Payable</span>
-                        <span className="font-bold">{formatNaira(tax?.net_vat)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pt-4">
-                        <span className="font-semibold">Estimated CIT/Levy</span>
-                        <span className="font-semibold text-green-600">{tax?.cit_exempt ? '₦0 (Exempt)' : 'Review AI Tax Analysis'}</span>
-                      </div>
-                      <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
-                        <p className="text-sm text-green-900">
-                          <strong>Status:</strong> Tax summary based on your business data and AI analysis.
+                      <div>
+                        <p className="text-sm text-muted-foreground">
+                          Based on 2026 PIT bands and your current profit (treats profit as chargeable income; ignores deductions).
                         </p>
                       </div>
                     </div>
@@ -503,6 +404,48 @@ const Reports = () => {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Weekly Performance section: last 8 weeks stats */}
+        <Card className="shadow-card">
+          <CardHeader>
+            <CardTitle>Weekly Performance</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">Last 8 weeks profit.</p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid sm:grid-cols-2 gap-4 mb-4">
+              <div className="p-3 rounded border">
+                <div className="text-xs text-muted-foreground">Last Week Profit</div>
+                <div className="text-lg font-semibold">{formatNaira(last)}</div>
+              </div>
+              <div className="p-3 rounded border">
+                <div className="text-xs text-muted-foreground">Avg Profit (12w)</div>
+                <div className="text-lg font-semibold">{formatNaira(avgProfit12)}</div>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-left text-muted-foreground">
+                  <tr>
+                    <th className="py-2 pr-4">Week</th>
+                    <th className="py-2 pr-4">Revenue</th>
+                    <th className="py-2 pr-4">Expenses</th>
+                    <th className="py-2 pr-4">Profit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lastWeeks.map((w) => (
+                    <tr key={w.key} className="border-t">
+                      <td className="py-2 pr-4">{w.key}</td>
+                      <td className="py-2 pr-4">{formatNaira(w.revenue)}</td>
+                      <td className="py-2 pr-4">{formatNaira(w.expenses)}</td>
+                      <td className="py-2 pr-4">{formatNaira(w.profit)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );

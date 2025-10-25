@@ -2,11 +2,11 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from extensions import db
 from models import Sale, Expense, BusinessProfile
-# Use function-based interfaces from our AI modules
 from .advise import get_nigerian_advice
 from .analyst import get_business_analysis
 from .chat import get_business_chat_reply
 from .nigerian_taxcalc import calculate_tax_and_assess
+from .pit import estimate_pit, pit_from_file
 import os
 import tempfile
 
@@ -42,12 +42,19 @@ def insights():
 
     # Call AI advisor and map to frontend shape
     advice_object = get_nigerian_advice(user_query)
+    steps = advice_object.actionable_steps or []
+    if not steps:
+        # Provide default Nigeria-specific actionable items when AI is unavailable/empty
+        steps = [
+            "Collect 80% of receivables in 30 days via weekly reminders.",
+            "Negotiate 30–45 day supplier terms to ease cash pressure.",
+            "Trim top-3 expense lines by 5% within 60 days.",
+        ]
     strategic = {
         "summary": advice_object.key_points_summary,
         "recommendations": [
-            {"title": f"Step {i+1}", "detail": step}
-            for i, step in enumerate(advice_object.actionable_steps or [])
-        ]
+            {"title": f"Step {i+1}", "detail": step} for i, step in enumerate(steps)
+        ],
     }
     return jsonify(strategic), 200
 
@@ -85,6 +92,14 @@ def analyze():
     margin = (net_profit / total_revenue * 100.0) if total_revenue > 0 else 0.0
     health_score = max(0, min(100, 70 + (margin / 2)))  # lightweight heuristic
 
+    actions = report.actionable_advice or []
+    if not actions:
+        actions = [
+            "Collect 80% of receivables in 30 days via weekly reminders.",
+            "Cut variable costs by 5% in 60 days via supplier renegotiation.",
+            "Raise prices 2–3% on top sellers next month to defend margin.",
+        ]
+
     analysis = {
         "health_score": round(health_score),
         "kpis": [
@@ -104,7 +119,7 @@ def analyze():
         "growth_projection": report.growth_and_future_projection,
         "valuation": report.estimated_business_valuation,
         "loan": report.loan_eligibility_assessment,
-        "actions": report.actionable_advice,
+        "actions": actions,
     }
     return jsonify(analysis), 200
 
@@ -188,3 +203,15 @@ def chat():
 
     result = get_business_chat_reply(history, user_message, context)
     return jsonify({"reply": result.reply}), 200
+
+@ai.route('/pit', methods=['GET'])
+@login_required
+def pit_quick():
+    profile = BusinessProfile.query.filter_by(user_id=current_user.id).first()
+    if not profile:
+        return jsonify({"error": "No business profile"}), 400
+    # Use sums as annualized approximation until a date filter exists
+    total_sales = float(db.session.query(db.func.coalesce(db.func.sum(Sale.amount), 0)).filter_by(business_id=profile.id).scalar() or 0)
+    total_expenses = float(db.session.query(db.func.coalesce(db.func.sum(Expense.amount), 0)).filter_by(business_id=profile.id).scalar() or 0)
+    est = estimate_pit(total_sales, total_expenses)
+    return jsonify(est.model_dump()), 200

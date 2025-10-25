@@ -348,7 +348,29 @@ const Catalog = () => {
             Reset Filter
           </Button>
 
-          {/* Moved Add New Item button here at the end of the toolbar */}
+          {/* Upload CSV/XLSX */}
+          <input
+            id="import-file"
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) onUpload(f);
+              // reset to allow re-uploading same file name
+              e.currentTarget.value = "";
+            }}
+          />
+          <Button
+            className="gap-2 h-9 rounded-md px-3"
+            onClick={() => document.getElementById('import-file')?.click()}
+            title="Import CSV/XLSX with columns: name, category(sale/expense), amount, date, quantity, totalamount"
+          >
+            <Upload className="w-4 h-4" />
+            Import CSV/XLSX
+          </Button>
+
+          {/* Add New Item button at the end */}
           <Button className="ml-auto shrink-0 gap-2 h-9 rounded-md px-3" onClick={() => setOpen(true)}>
             <Plus className="w-4 h-4" />
             Add New Item
@@ -418,8 +440,8 @@ const Catalog = () => {
         <div className="flex justify-between items-center text-sm text-muted-foreground">
           <p>Showing {items.length} item(s)</p>
           <div className="flex gap-2">
-            <Button className="border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 rounded-md px-3">Previous</Button>
-            <Button className="border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 rounded-md px-3">Next</Button>
+            <Button className="h-9 rounded-md px-3">Previous</Button>
+            <Button className="h-9 rounded-md px-3">Next</Button>
           </div>
         </div>
       </div>
